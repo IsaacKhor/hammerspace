@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+
+<body class="container mt-4">
+    <h1 class="mb-3">File Upload</h1>
+    <div class="mb-3">
+        <input type="file" id="fileInput" class="form-control" multiple>
+    </div>
+    <div class="mb-3">
+        <textarea id="textInput" class="form-control"
+            placeholder="Enter text to submit..."></textarea>
+    </div>
+    <progress id="progress" value="0" max="100"
+        class="form-control mb-3"></progress>
+    <button onclick="uploadFiles()" class="btn btn-primary">Upload</button>
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Upload Date</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="fileTable"> </tbody>
+    </table>
+    <script>
+        async function uploadFiles() {
+            let input = document.getElementById('fileInput');
+            let textInput = document.getElementById('textInput').value;
+            let progress = document.getElementById('progress');
+            let formData = new FormData();
+            for (let file of input.files) {
+                formData.append('file', file);
+            }
+            if (textInput.trim()) {
+                let blob = new Blob([textInput], { type: 'text/plain' });
+                let filename = textInput.substring(0, 32);
+                if (filename.length < textInput.length) {
+                    filename += '...';
+                }
+
+                formData.append('file', blob, filename);
+            }
+            let xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = function (event) {
+                progress.value = (event.loaded / event.total) * 100;
+            };
+            xhr.open("POST", "/files", true);
+            xhr.send(formData);
+            xhr.onload = () => loadFiles();
+        }
+        async function loadFiles() {
+            let res = await fetch('/files');
+            let files = await res.json();
+            files.sort((a, b) => new Date(b.upload_time) - new Date(a.upload_time));
+            let table = document.getElementById('fileTable');
+            table.innerHTML = '';
+            files.forEach(f => {
+                let row = table.insertRow();
+
+                let name_cell = row.insertCell();
+                let dl = document.createElement('a');
+                dl.href = `/files/${f.id}`;
+                dl.textContent = f.filename;
+                name_cell.append(dl);
+
+                let date_cell = row.insertCell();
+                let date = new Date(f.upload_time);
+                date_cell.textContent = date.toLocaleString('en-CA', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }).replace(',', '');
+
+                let actions = row.insertCell();
+                let view = document.createElement('button');
+                view.textContent = 'View';
+                view.className = 'btn btn-secondary btn-sm ms-2';
+                view.onclick = async () => {
+                    let res = await fetch(`/files/${f.id}`);
+                    let text = await res.text();
+                    alert(text);
+                };
+                actions.appendChild(view);
+                let del = document.createElement('button');
+                del.textContent = 'Delete';
+                del.className = 'btn btn-danger btn-sm ms-2';
+                del.onclick = async () => {
+                    await fetch(`/files/${f.id}`, { method: 'DELETE' });
+                    loadFiles();
+                };
+                actions.appendChild(del);
+            });
+        }
+        loadFiles();
+    </script>
+</body>
+
+</html>
