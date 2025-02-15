@@ -19,17 +19,32 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let db = SqlitePool::connect("sqlite:filesdb.sqlite3").await.unwrap();
-    query!("CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, filename TEXT, upload_time TEXT, content BLOB)").execute(&db).await.unwrap();
+    query!(
+        "CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, filename TEXT, upload_time TEXT)"
+    )
+    .execute(&db)
+    .await
+    .unwrap();
 
     let state = AppState { db };
+    let config_txt = tokio::fs::read_to_string("config.json")
+        .await
+        .unwrap_or("{}".into());
+    let config: serde_json::Value = serde_json::from_str(&config_txt).unwrap();
+
+    let user = config["user"].as_str().unwrap_or("user");
+    let password = config["password"].as_str().unwrap_or("password");
+    let addr = config["address"].as_str().unwrap_or("127.0.0.1:7002");
 
     let app = Router::new()
         .route("/", get(homepage))
         .route("/files", post(upload_file).get(list_files))
         .route("/files/{fileid}", get(get_file).delete(delete_file))
-        .layer(axum::extract::Extension(state));
+        .layer(axum::extract::Extension(state))
+        .layer(tower_http::validate_request::ValidateRequestHeaderLayer::basic(user, password));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("Listening on http://{}", &addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
