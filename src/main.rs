@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     extract::{Multipart, Path},
     response::{Html, IntoResponse},
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 use chrono::Utc;
@@ -39,9 +39,10 @@ async fn main() {
     let app = Router::new()
         .route("/", get(homepage))
         .route("/files", post(upload_file).get(list_files))
-        .route("/files/{fileid}", get(get_file).delete(delete_file))
-        .layer(axum::extract::Extension(state))
-        .layer(tower_http::validate_request::ValidateRequestHeaderLayer::basic(user, password));
+        .route("/files/{fileid}", delete(delete_file))
+        .layer(tower_http::validate_request::ValidateRequestHeaderLayer::basic(user, password))
+        .route("/files/{fileid}", get(get_file))
+        .layer(axum::extract::Extension(state));
 
     println!("Listening on http://{}", &addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
